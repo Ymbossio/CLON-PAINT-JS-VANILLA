@@ -106,6 +106,11 @@
                 border-right-color: #eee;
                 border-bottom-color: #eee;
             }
+
+            &[disabled]{
+                pointer-events: none;
+                opacity: .5;
+            }
         }
     }
 
@@ -154,11 +159,14 @@
         const $clearBtn = $('#clear-btn')
         const $drawBtn = $('#draw-btn')
         const $rectangleBtn = $('#rectangle-btn')
+        const $eraseBtn = $('#erase-btn')
+        const $pickerBtn = $('#picker-btn')
 
 
         const ctx = $canvas.getContext('2d')
 
         let isDrawing = false
+        let isShiftPressed = false
         let startX, startY
         let lastX = 0
         let lastY = 0
@@ -173,6 +181,18 @@
         $colorPicker.addEventListener('change', handleChangeColor)
         $clearBtn.addEventListener('click', clearCanvas)
 
+        document.addEventListener('keydown', handdleKeyDown)
+        document.addEventListener('keyup', handdleKeyUp)
+
+        
+        $pickerBtn.addEventListener('click', () =>{
+            setMode(MODES.PICKER)
+        })
+
+        $eraseBtn.addEventListener('click', ()=>{
+            setMode(MODES.ERASE)
+        })
+
         $rectangleBtn.addEventListener('click', ()=>{
             setMode(MODES.RECTANGLE)
         })
@@ -183,7 +203,8 @@
         })
 
 
-        function setMode(newMode){
+        async function setMode(newMode){
+            let previousMode = mode
             mode = newMode
 
             //limpiar boton activo actual
@@ -193,6 +214,7 @@
             if(mode === MODES.DRAW){
                 $drawBtn.classList.add('active')
                 canvas.style.cursor ='crosshair'
+                ctx.globalCompositeOperation = 'source-over'
                 ctx.lineWidth = 2
                 return
             }
@@ -200,8 +222,34 @@
             if(mode === MODES.RECTANGLE){
                 $rectangleBtn.classList.add('active')
                 canvas.style.cursor = 'nw-resize'
+                ctx.globalCompositeOperation = 'source-over'
                 ctx.lineWidth = 2
                 return
+            }
+
+            if(mode === MODES.ERASE){
+                $eraseBtn.classList.add('active')
+                canvas.style.cursor = 'url("./cursors/erase.png") 0 24, auto';
+                ctx.globalCompositeOperation = 'destination-out'
+                ctx.lineWidth = 20
+                return
+            }
+
+            if(mode === MODES.PICKER){
+                $pickerBtn.classList.add('active')
+                const eyeDropper =  new window.EyeDroppper()
+
+                try {
+                    const result = await eyeDroppe.open()
+                    const { sRGBHex} = result
+                    ctx.strokeStyle = sRGBHex
+                    $colorPicker.value = sRGBHex
+                    setMode(previousMode)
+                } catch (error) {
+                    
+                }
+
+                return 
             }
         }
 
@@ -233,7 +281,7 @@
 
             const { offsetX, offsetY} = event
 
-            if(mode === MODES.DRAW){
+            if(mode === MODES.DRAW || mode === MODES.ERASE){
 
                 //hacer un trazado
                 ctx.beginPath()
@@ -257,8 +305,19 @@
 
                 ctx.putImageData(imageData, 0, 0)
 
-                const width = offsetX - startX
-                const height = offsetY - startY
+                let width = offsetX - startX
+                let height = offsetY - startY
+
+                if(isShiftPressed){
+                    const sideLength = Math.min(
+                        Math.abs(width),
+                        Math.abs(height)
+                    )
+
+                    width = width > 0 ? sideLength : -sideLength
+                    height = height > 0 ? sideLength : -sideLength
+
+                }
 
                 ctx.beginPath()
                 ctx.rect(startX, startY, width, height)
@@ -272,9 +331,22 @@
             isDrawing = false
         }
 
+        function handdleKeyDown({key}){
+            isShiftPressed = event.key == 'Shift'   
+        }
+
+        function handdleKeyUp({key}){
+            if(ley == 'Shif') isShiftPressed = false
+        }        
 
         //Initial Method
         setMode(MODES.DRAW)
+
+
+        //Chequeo de EyeDropper en el navegador del usuario
+        if(typeof window.EyeDroppper != 'undefined'){
+           $pickerBtn.removeAttribute('disabled')
+        }
 
 
     </script>
@@ -302,7 +374,7 @@
                 <button id="erase-btn" title="Borrar"></button>
                 <button id="rectangle-btn" title="Rectangulo"></button>
                 <button id="ellipse-btn" title="Elipse"></button>
-                <button id="picker-btn" title="Capturar Color"></button>
+                <button disabled id="picker-btn" title="Capturar Color"></button>
                 <button id="clear-btn" title="Limpiar Dibujo"></button>
             </nav>
         </aside>
